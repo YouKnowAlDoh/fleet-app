@@ -1,6 +1,7 @@
+export const runtime = "nodejs";
+
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+import { prisma } from "../../../lib/prisma";
 
 export async function GET() {
   const assets = await prisma.asset.findMany({ orderBy: { createdAt: "desc" } });
@@ -20,7 +21,7 @@ export async function POST(req: Request) {
     model: body.model ? String(body.model).trim() : null,
     status: "ACTIVE",
     meterUnit: body.meterUnit === "HOURS" ? "HOURS" : "MILES",
-    currentMeter: null,
+    currentMeter: null
   };
   if (!data.code || !data.name) {
     return NextResponse.json({ error: "Code and Name are required." }, { status: 400 });
