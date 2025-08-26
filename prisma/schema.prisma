@@ -1,0 +1,24 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Asset {
+  id           String   @id @default(uuid())
+  code         String
+  name         String
+  assetType    String
+  vin          String?
+  plate        String?
+  year         Int?
+  make         String?
+  model        String?
+  status       String   @default("ACTIVE")
+  meterUnit    String   @default("MILES")
+  currentMeter Int?
+  createdAt    DateTime @default(now())
+}
