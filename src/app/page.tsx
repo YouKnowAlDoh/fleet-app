@@ -4,11 +4,7 @@ import React, { useMemo, useState } from "react";
 
 /**
  * Fleet Manager UI — Mock (React)
- * Fixes:
- * - Removed a duplicated JSX block that caused "return outside of function" (dangling code after AssetsView)
- * - Added a VIN Decoder modal (NHTSA VPIC) wired to the mock
- * - Replaced random inventory counts to avoid SSR hydration mismatch
- * - Added a lightweight in-app Test Runner so we have concrete test cases
+ * Fully restored + typed so it builds on Vercel
  */
 
 /*************************
@@ -47,7 +43,9 @@ function NavButton({ label, active, onClick, emoji }: { label: string; active?: 
 /*************************
  * Mock Data (deterministic)
  *************************/
-const MOCK_ASSETS = [
+const MOCK_ASSETS: Array<{
+  id: string; code: string; name: string; type: string; status: "ACTIVE"|"IN_SHOP"|"OUT_OF_SERVICE"|"RETIRED"; meter: number; pmDue: string; location: string;
+}> = [
   { id: "A-101", code: "85", name: "F-550 Truck", type: "Truck", status: "ACTIVE", meter: 128442, pmDue: "750 mi", location: "Yard 3" },
   { id: "A-102", code: "25400", name: "Case 621G", type: " Front End Loader", status: "IN_SHOP", meter: 6402, pmDue: "Due now", location: "Shop" },
   { id: "A-103", code: "25250", name: "Case SV280B", type: "Skid Steer", status: "ACTIVE", meter: 3121, pmDue: "120 hrs", location: "Route 12" },
@@ -55,25 +53,25 @@ const MOCK_ASSETS = [
   { id: "A-105", code: "SLT-9", name: "SaltDogg 2yd", type: "Salter", status: "OUT_OF_SERVICE", meter: 0, pmDue: "—", location: "Shop" },
 ];
 
-const MOCK_PM = [
+const MOCK_PM: Array<{ id: string; asset: string; template: string; dueIn: number; unit: "mi"|"hrs"; priority: "LOW"|"MEDIUM"|"HIGH"|"CRITICAL"; }> = [
   { id: "PM-1", asset: "F-550 Flatbed", template: "Oil & Filter", dueIn: -150, unit: "mi", priority: "HIGH" },
   { id: "PM-2", asset: "Case 621G", template: "Hydraulic Service", dueIn: 12, unit: "hrs", priority: "MEDIUM" },
   { id: "PM-3", asset: "Case SV280B", template: "Grease Points", dueIn: 4, unit: "hrs", priority: "LOW" },
 ];
 
-const MOCK_WOS = [
+const MOCK_WOS: Array<{ number: string; asset: string; status: "OPEN"|"IN_PROGRESS"|"ON_HOLD"|"CLOSED"; priority: "LOW"|"MEDIUM"|"HIGH"|"CRITICAL"; tasks: number; eta: string; }> = [
   { number: "WO-10045", asset: "F-550 Flatbed", status: "OPEN", priority: "HIGH", tasks: 3, eta: "Aug 20" },
   { number: "WO-10046", asset: "Case 621G", status: "IN_PROGRESS", priority: "CRITICAL", tasks: 5, eta: "Aug 19" },
   { number: "WO-10047", asset: "International 4300", status: "ON_HOLD", priority: "MEDIUM", tasks: 2, eta: "Aug 22" },
 ];
 
-const MOCK_INSPECTIONS = [
+const MOCK_INSPECTIONS: Array<{ id: string; asset: string; driver: string; result: "PASS"|"FAIL"; time: string; }> = [
   { id: "DVIR-4412", asset: "F-550 Flatbed", driver: "T. Kuykendall", result: "FAIL", time: "Today 08:14" },
   { id: "DVIR-4413", asset: "Case SV280B", driver: "A. Ruby", result: "PASS", time: "Today 06:55" },
   { id: "DVIR-4410", asset: "Case 621G", driver: "J. Lumb", result: "PASS", time: "Yesterday 18:22" },
 ];
 
-const MOCK_PARTS = [
+const MOCK_PARTS: Array<{ name: string; onHand: number; }> = [
   { name: "Oil Filter", onHand: 12 },
   { name: "Top Strobe Light", onHand: 5 },
   { name: "Steer Tires", onHand: 6 },
@@ -82,11 +80,24 @@ const MOCK_PARTS = [
 /*************************
  * VIN Decoder Modal (NHTSA VPIC)
  *************************/
+
+type AssetForm = {
+  code: string;
+  name: string;
+  assetType: "Truck" | "Loader" | "Skid" | "Attachment" | "Trailer" | "Salter";
+  vin: string;
+  plate: string;
+  year: string; // keep as string; normalize on save
+  make: string;
+  model: string;
+  meterUnit: "MILES" | "HOURS";
+};
+
 function AddAssetModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [vin, setVin] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [vin, setVin] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<AssetForm>({
     code: "",
     name: "",
     assetType: "Truck",
@@ -104,7 +115,7 @@ function AddAssetModal({ open, onClose }: { open: boolean; onClose: () => void }
     try {
       setLoading(true);
       const res = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/decodevinvalues/${encodeURIComponent(vin)}?format=json`);
-      const data = await res.json();
+      const data: { Results?: Array<Record<string, string>> } = await res.json();
       const row = data?.Results?.[0] || {};
       const year = row.ModelYear || "";
       const make = row.Make || "";
@@ -117,12 +128,12 @@ function AddAssetModal({ open, onClose }: { open: boolean; onClose: () => void }
     }
   }
 
-  function onChange<K extends keyof typeof form>(key: K, value: any) {
-    setForm((f) => ({ ...f, [key]: value }));
+  function onChange<K extends keyof AssetForm>(key: K, value: AssetForm[K]) {
+    setForm((f) => ({ ...f, [key]: value } as AssetForm));
   }
 
   function save() {
-    // In the mock we just log; in the real app this will POST to /api/assets
+    // In mock, just log; in app, call POST /api/assets
     console.log("Create Asset", form);
     onClose();
   }
@@ -160,7 +171,7 @@ function AddAssetModal({ open, onClose }: { open: boolean; onClose: () => void }
           </div>
           <div>
             <label className="text-xs text-zinc-400">Type</label>
-            <select value={form.assetType} onChange={(e) => onChange("assetType", e.target.value)} className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm outline-none">
+            <select value={form.assetType} onChange={(e) => onChange("assetType", e.target.value as AssetForm["assetType"])} className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm outline-none">
               {["Truck","Loader","Skid","Attachment","Trailer","Salter"].map(t => <option key={t}>{t}</option>)}
             </select>
           </div>
@@ -183,7 +194,7 @@ function AddAssetModal({ open, onClose }: { open: boolean; onClose: () => void }
           </div>
           <div>
             <label className="text-xs text-zinc-400">Meter Unit</label>
-            <select value={form.meterUnit} onChange={(e) => onChange("meterUnit", e.target.value)} className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm outline-none">
+            <select value={form.meterUnit} onChange={(e) => onChange("meterUnit", e.target.value as AssetForm["meterUnit"]) } className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm outline-none">
               {["MILES","HOURS"].map(t => <option key={t}>{t}</option>)}
             </select>
           </div>
@@ -313,7 +324,7 @@ function DashboardView() {
                   <div className="text-sm text-zinc-200">{i.asset}</div>
                   <div className="text-xs text-zinc-500">{i.driver} • {i.time}</div>
                 </div>
-                <AssetStatusPill status={i.result === "PASS" ? "ACTIVE" : "OUT_OF_SERVICE"} />
+                <Badge tone={i.result === "PASS" ? "green" : "red"}>{i.result}</Badge>
               </div>
             ))}
           </div>
@@ -347,6 +358,8 @@ function AssetsView({ search }: { search: string }) {
     return MOCK_ASSETS.filter((a) => [a.code, a.name, a.type, a.location].join(" ").toLowerCase().includes(q));
   }, [search]);
 
+  const isHours = (t: string) => /loader|skid/i.test(t);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -377,7 +390,7 @@ function AssetsView({ search }: { search: string }) {
                 <td className="px-4 py-2 text-sm text-zinc-100">{a.name}</td>
                 <td className="px-4 py-2 text-sm text-zinc-300">{a.type}</td>
                 <td className="px-4 py-2"><AssetStatusPill status={a.status} /></td>
-                <td className="px-4 py-2 text-sm text-zinc-300">{a.meter?.toLocaleString()} {a.type === "Loader" || a.type === "Skid" ? "hrs" : "mi"}</td>
+                <td className="px-4 py-2 text-sm text-zinc-300">{a.meter?.toLocaleString()} {isHours(a.type) ? "hrs" : "mi"}</td>
                 <td className="px-4 py-2 text-sm text-zinc-300">{a.pmDue}</td>
                 <td className="px-4 py-2 text-sm text-zinc-300">{a.location}</td>
                 <td className="px-4 py-2 text-right">
